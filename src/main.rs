@@ -1,6 +1,18 @@
+use std::{convert::TryFrom, env, fs::File, path::PathBuf};
+
+fn help() {
+    println!(
+        "Usage: lc3_emu <binary>
+
+        Options:
+            <binary>    Binary to emulate."
+    );
+}
+
 const PC_START: u16 = 0x3000;
 const MEMORY_MAX: usize = 1 << 16;
 
+#[repr(u8)]
 enum Register {
     Rr0 = 0,
     Rr1,
@@ -12,7 +24,26 @@ enum Register {
     Rr7,
     Rpc,
     Rcond,
-    Rcount,
+}
+
+impl TryFrom<u8> for Register {
+    type Error = ();
+
+    fn try_from(v: u8) -> Result<Self, Self::Error> {
+        match v {
+            x if x == Register::Rr0 as u8 => Ok(Register::Rr0),
+            x if x == Register::Rr1 as u8 => Ok(Register::Rr1),
+            x if x == Register::Rr2 as u8 => Ok(Register::Rr2),
+            x if x == Register::Rr3 as u8 => Ok(Register::Rr3),
+            x if x == Register::Rr4 as u8 => Ok(Register::Rr4),
+            x if x == Register::Rr5 as u8 => Ok(Register::Rr5),
+            x if x == Register::Rr6 as u8 => Ok(Register::Rr6),
+            x if x == Register::Rr7 as u8 => Ok(Register::Rr7),
+            x if x == Register::Rpc as u8 => Ok(Register::Rpc),
+            x if x == Register::Rcond as u8 => Ok(Register::Rcond),
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -78,6 +109,7 @@ impl Registers {
     }
 }
 
+#[repr(u8)]
 enum ConditionFlag {
     FlPos,
     FlZro,
@@ -114,6 +146,31 @@ enum Instruction {
     OpTrap,
 }
 
+impl TryFrom<u16> for Instruction {
+    type Error = ();
+
+    fn try_from(v: u16) -> Result<Self, Self::Error> {
+        match v {
+            x if x == Instruction::OpBr as u16 => Ok(Instruction::OpBr),
+            x if x == Instruction::OpAdd as u16 => Ok(Instruction::OpAdd),
+            x if x == Instruction::OpLd as u16 => Ok(Instruction::OpLd),
+            x if x == Instruction::OpSt as u16 => Ok(Instruction::OpSt),
+            x if x == Instruction::OpJsr as u16 => Ok(Instruction::OpJsr),
+            x if x == Instruction::OpAnd as u16 => Ok(Instruction::OpAnd),
+            x if x == Instruction::OpLdr as u16 => Ok(Instruction::OpLdr),
+            x if x == Instruction::OpStr as u16 => Ok(Instruction::OpStr),
+            x if x == Instruction::OpRti as u16 => Ok(Instruction::OpRti),
+            x if x == Instruction::OpNot as u16 => Ok(Instruction::OpNot),
+            x if x == Instruction::OpLdi as u16 => Ok(Instruction::OpLdi),
+            x if x == Instruction::OpSti as u16 => Ok(Instruction::OpSti),
+            x if x == Instruction::OpRes as u16 => Ok(Instruction::OpRes),
+            x if x == Instruction::OpLea as u16 => Ok(Instruction::OpLea),
+            x if x == Instruction::OpTrap as u16 => Ok(Instruction::OpTrap),
+            _ => Err(()),
+        }
+    }
+}
+
 struct Mmu {
     memory: Vec<u16>,
 }
@@ -141,6 +198,26 @@ impl Emulator {
 }
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    match args.len() {
+        2 => {
+            let binary: PathBuf = PathBuf::from(args[1].parse::<String>().unwrap());
+            println!("Emulation target is: '{}'", binary.display());
+            {
+                File::open(&binary).unwrap_or_else(|err| {
+                    panic!("Could not open file '{}': {}", binary.display(), err)
+                });
+            }
+        }
+        _ => {
+            help();
+            panic!("Invalid arguments");
+        }
+    }
+
+    // TODO load binary
+
     let mut emu = Emulator::new();
 
     emu.registers.update(
@@ -151,71 +228,21 @@ fn main() {
     emu.registers.update(Register::Rpc, PC_START);
 
     let mut running = true;
-    let mut op: Instruction = Instruction::OpLdr;
+    let mut instr: u16;
+    let mut op: Result<Instruction, ()>;
 
     while running {
+        // TODO fetch instruction and match op
+
+        instr = 0b0011000001000011;
+        op = Instruction::try_from(instr >> 12);
+
         match op {
-            Instruction::OpBr => {
+            Ok(op) => {
                 println!("{:?}", op);
                 running = false;
             }
-            Instruction::OpAdd => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpLd => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpSt => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpJsr => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpAnd => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpLdr => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpStr => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpRti => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpNot => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpLdi => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpSti => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpRes => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpLea => {
-                println!("{:?}", op);
-                running = false;
-            }
-            Instruction::OpTrap => {
-                println!("{:?}", op);
-                running = false;
-            }
-            _ => println!("Invalid instruction"),
+            Err(_) => eprintln!("Invalid instruction"),
         }
     }
 
