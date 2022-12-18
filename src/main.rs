@@ -15,7 +15,7 @@ struct Registers {
 }
 
 impl Registers {
-    pub fn new() -> Registers {
+    pub fn new() -> Self {
         Registers {
             r_r0: 0,
             r_r1: 0,
@@ -80,14 +80,14 @@ impl Mmu {
 
 struct Emulator {
     pub memory: Mmu,
-    pub registers: Vec<u16>,
+    pub registers: Registers,
 }
 
 impl Emulator {
     pub fn new() -> Self {
         Emulator {
             memory: Mmu::new(),
-            registers: vec![0; Register::R_COUNT as usize],
+            registers: Registers::new(),
         }
     }
 }
