@@ -14,6 +14,30 @@ enum Register {
     R_COUNT,
 }
 
+enum ConditionFlag {
+    FL_POS = 1 << 0,
+    FL_ZRO = 1 << 1,
+    FL_NEG = 1 << 2,
+}
+
+enum Instruction {
+    OP_BR = 0,
+    OP_ADD,
+    OP_LD,
+    OP_ST,
+    OP_JSR,
+    OP_AND,
+    OP_LDR,
+    OP_STR,
+    OP_RTI,
+    OP_NOT,
+    OP_LDI,
+    OP_STI,
+    OP_RES,
+    OP_LEA,
+    OP_TRAP,
+}
+
 struct Mmu {
     memory: Vec<u16>,
 }
