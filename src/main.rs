@@ -1,14 +1,5 @@
 use std::{convert::TryFrom, env, fs::File, path::PathBuf};
 
-fn help() {
-    println!(
-        "Usage: lc3_emu <binary>
-
-        Options:
-            <binary>    Binary to emulate."
-    );
-}
-
 const PC_START: u16 = 0x3000;
 const MEMORY_MAX: usize = 1 << 16;
 
@@ -29,8 +20,8 @@ enum Register {
 impl TryFrom<u8> for Register {
     type Error = ();
 
-    fn try_from(v: u8) -> Result<Self, Self::Error> {
-        match v {
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
             x if x == Register::Rr0 as u8 => Ok(Register::Rr0),
             x if x == Register::Rr1 as u8 => Ok(Register::Rr1),
             x if x == Register::Rr2 as u8 => Ok(Register::Rr2),
@@ -76,8 +67,8 @@ impl Registers {
         }
     }
 
-    pub fn update(&mut self, index: Register, value: u16) {
-        match index {
+    pub fn update(&mut self, reg: Register, value: u16) {
+        match reg {
             Register::Rr0 => self.r_r0 = value,
             Register::Rr1 => self.r_r1 = value,
             Register::Rr2 => self.r_r2 = value,
@@ -92,8 +83,8 @@ impl Registers {
         }
     }
 
-    pub fn get(self, index: Register) -> u16 {
-        match index {
+    pub fn get(self, reg: Register) -> u16 {
+        match reg {
             Register::Rr0 => self.r_r0,
             Register::Rr1 => self.r_r1,
             Register::Rr2 => self.r_r2,
@@ -171,6 +162,66 @@ impl TryFrom<u16> for Instruction {
     }
 }
 
+struct Instructions {
+    op_br: fn(),
+    op_add: fn(),
+    op_ld: fn(),
+    op_st: fn(),
+    op_jsr: fn(),
+    op_and: fn(),
+    op_ldr: fn(),
+    op_str: fn(),
+    op_rti: fn(),
+    op_not: fn(),
+    op_ldi: fn(),
+    op_sti: fn(),
+    op_res: fn(),
+    op_lea: fn(),
+    op_trap: fn(),
+}
+
+impl Instructions {
+    pub fn new() -> Self {
+        Instructions {
+            op_br: help,
+            op_add: help,
+            op_ld: help,
+            op_st: help,
+            op_jsr: help,
+            op_and: help,
+            op_ldr: help,
+            op_str: help,
+            op_rti: help,
+            op_not: help,
+            op_ldi: help,
+            op_sti: help,
+            op_res: help,
+            op_lea: help,
+            op_trap: help,
+        }
+    }
+
+    pub fn call(&self, instr: Instruction) {
+        match instr {
+            Instruction::OpBr => (self.op_br)(),
+            Instruction::OpAdd => (self.op_add)(),
+            Instruction::OpLd => (self.op_ld)(),
+            Instruction::OpSt => (self.op_st)(),
+            Instruction::OpJsr => (self.op_jsr)(),
+            Instruction::OpAnd => (self.op_and)(),
+            Instruction::OpLdr => (self.op_ldr)(),
+            Instruction::OpStr => (self.op_str)(),
+            Instruction::OpRti => (self.op_rti)(),
+            Instruction::OpNot => (self.op_not)(),
+            Instruction::OpLdi => (self.op_ldi)(),
+            Instruction::OpSti => (self.op_sti)(),
+            Instruction::OpRes => (self.op_res)(),
+            Instruction::OpLea => (self.op_lea)(),
+            Instruction::OpTrap => (self.op_trap)(),
+        }
+    }
+}
+
 struct Mmu {
     memory: Vec<u16>,
 }
@@ -186,6 +237,7 @@ impl Mmu {
 struct Emulator {
     pub memory: Mmu,
     pub registers: Registers,
+    pub instructions: Instructions,
 }
 
 impl Emulator {
@@ -193,8 +245,18 @@ impl Emulator {
         Emulator {
             memory: Mmu::new(),
             registers: Registers::new(),
+            instructions: Instructions::new(),
         }
     }
+}
+
+fn help() {
+    println!(
+        "Usage: lc3_emu <binary>
+
+        Options:
+            <binary>    Binary to emulate."
+    );
 }
 
 fn main() {
@@ -234,12 +296,13 @@ fn main() {
     while running {
         // TODO fetch instruction and match op
 
-        instr = 0b0011000001000011;
+        instr = 0b0001000001000011;
         op = Instruction::try_from(instr >> 12);
 
         match op {
             Ok(op) => {
                 println!("{:?}", op);
+                emu.instructions.call(op);
                 running = false;
             }
             Err(_) => eprintln!("Invalid instruction"),
