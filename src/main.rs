@@ -1,6 +1,7 @@
+const PC_START: u16 = 0x3000;
 const MEMORY_MAX: usize = 1 << 16;
 
-enum RegisterIndex {
+enum Register {
     Rr0 = 0,
     Rr1,
     Rr2,
@@ -26,7 +27,6 @@ struct Registers {
     r_r7: u16,
     r_pc: u16,
     r_cond: u16,
-    r_count: u16,
 }
 
 impl Registers {
@@ -42,22 +42,37 @@ impl Registers {
             r_r7: 0,
             r_pc: 0,
             r_cond: 0,
-            r_count: 0,
         }
     }
 
-    pub fn update(&mut self, index: RegisterIndex, value: u16) {
+    pub fn update(&mut self, index: Register, value: u16) {
         match index {
-            RegisterIndex::Rr0 => self.r_r0 = value,
-            RegisterIndex::Rr1 => self.r_r1 = value,
-            RegisterIndex::Rr2 => self.r_r2 = value,
-            RegisterIndex::Rr3 => self.r_r3 = value,
-            RegisterIndex::Rr4 => self.r_r4 = value,
-            RegisterIndex::Rr5 => self.r_r5 = value,
-            RegisterIndex::Rr6 => self.r_r6 = value,
-            RegisterIndex::Rr7 => self.r_r7 = value,
-            RegisterIndex::Rpc => self.r_pc = value,
-            RegisterIndex::Rcond => self.r_cond = value,
+            Register::Rr0 => self.r_r0 = value,
+            Register::Rr1 => self.r_r1 = value,
+            Register::Rr2 => self.r_r2 = value,
+            Register::Rr3 => self.r_r3 = value,
+            Register::Rr4 => self.r_r4 = value,
+            Register::Rr5 => self.r_r5 = value,
+            Register::Rr6 => self.r_r6 = value,
+            Register::Rr7 => self.r_r7 = value,
+            Register::Rpc => self.r_pc = value,
+            Register::Rcond => self.r_cond = value,
+            _ => panic!("Invalid register index"),
+        }
+    }
+
+    pub fn get(self, index: Register) -> u16 {
+        match index {
+            Register::Rr0 => self.r_r0,
+            Register::Rr1 => self.r_r1,
+            Register::Rr2 => self.r_r2,
+            Register::Rr3 => self.r_r3,
+            Register::Rr4 => self.r_r4,
+            Register::Rr5 => self.r_r5,
+            Register::Rr6 => self.r_r6,
+            Register::Rr7 => self.r_r7,
+            Register::Rpc => self.r_pc,
+            Register::Rcond => self.r_cond,
             _ => panic!("Invalid register index"),
         }
     }
@@ -79,22 +94,24 @@ impl ConditionFlag {
     }
 }
 
+#[derive(Debug)]
+#[repr(u16)]
 enum Instruction {
-    OP_BR = 0,
-    OP_ADD,
-    OP_LD,
-    OP_ST,
-    OP_JSR,
-    OP_AND,
-    OP_LDR,
-    OP_STR,
-    OP_RTI,
-    OP_NOT,
-    OP_LDI,
-    OP_STI,
-    OP_RES,
-    OP_LEA,
-    OP_TRAP,
+    OpBr = 0,
+    OpAdd,
+    OpLd,
+    OpSt,
+    OpJsr,
+    OpAnd,
+    OpLdr,
+    OpStr,
+    OpRti,
+    OpNot,
+    OpLdi,
+    OpSti,
+    OpRes,
+    OpLea,
+    OpTrap,
 }
 
 struct Mmu {
@@ -125,10 +142,82 @@ impl Emulator {
 
 fn main() {
     let mut emu = Emulator::new();
+
     emu.registers.update(
-        RegisterIndex::Rcond,
+        Register::Rcond,
         ConditionFlag::get_cflag_value(ConditionFlag::FlZro),
     );
+
+    emu.registers.update(Register::Rpc, PC_START);
+
+    let mut running = true;
+    let mut op: Instruction = Instruction::OpLdr;
+
+    while running {
+        match op {
+            Instruction::OpBr => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpAdd => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpLd => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpSt => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpJsr => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpAnd => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpLdr => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpStr => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpRti => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpNot => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpLdi => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpSti => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpRes => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpLea => {
+                println!("{:?}", op);
+                running = false;
+            }
+            Instruction::OpTrap => {
+                println!("{:?}", op);
+                running = false;
+            }
+            _ => println!("Invalid instruction"),
+        }
+    }
 
     println!("{:?}", emu.registers);
 }
