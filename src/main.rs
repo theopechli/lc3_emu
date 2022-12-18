@@ -1,23 +1,51 @@
 const MEMORY_MAX: usize = 1 << 16;
 
-enum Register {
-    R_R0 = 0,
-    R_R1,
-    R_R2,
-    R_R3,
-    R_R4,
-    R_R5,
-    R_R6,
-    R_R7,
-    R_PC,
-    R_COND,
-    R_COUNT,
+struct Registers {
+    r_r0: u16,
+    r_r1: u16,
+    r_r2: u16,
+    r_r3: u16,
+    r_r4: u16,
+    r_r5: u16,
+    r_r6: u16,
+    r_r7: u16,
+    r_pc: u16,
+    r_cond: u16,
+    r_count: u16,
+}
+
+impl Registers {
+    pub fn new() -> Registers {
+        Registers {
+            r_r0: 0,
+            r_r1: 0,
+            r_r2: 0,
+            r_r3: 0,
+            r_r4: 0,
+            r_r5: 0,
+            r_r6: 0,
+            r_r7: 0,
+            r_pc: 0,
+            r_cond: 0,
+            r_count: 0,
+        }
+    }
 }
 
 enum ConditionFlag {
-    FL_POS = 1 << 0,
-    FL_ZRO = 1 << 1,
-    FL_NEG = 1 << 2,
+    FlPos,
+    FlZro,
+    FlNeg,
+}
+
+impl ConditionFlag {
+    pub fn get_cflag_value(cflag: ConditionFlag) -> u16 {
+        match cflag {
+            ConditionFlag::FlPos => 1 << 0,
+            ConditionFlag::FlZro => 1 << 1,
+            ConditionFlag::FlNeg => 1 << 2,
+        }
+    }
 }
 
 enum Instruction {
