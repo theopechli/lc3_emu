@@ -1,5 +1,20 @@
 const MEMORY_MAX: usize = 1 << 16;
 
+enum RegisterIndex {
+    Rr0 = 0,
+    Rr1,
+    Rr2,
+    Rr3,
+    Rr4,
+    Rr5,
+    Rr6,
+    Rr7,
+    Rpc,
+    Rcond,
+    Rcount,
+}
+
+#[derive(Debug)]
 struct Registers {
     r_r0: u16,
     r_r1: u16,
@@ -28,6 +43,22 @@ impl Registers {
             r_pc: 0,
             r_cond: 0,
             r_count: 0,
+        }
+    }
+
+    pub fn update(&mut self, index: RegisterIndex, value: u16) {
+        match index {
+            RegisterIndex::Rr0 => self.r_r0 = value,
+            RegisterIndex::Rr1 => self.r_r1 = value,
+            RegisterIndex::Rr2 => self.r_r2 = value,
+            RegisterIndex::Rr3 => self.r_r3 = value,
+            RegisterIndex::Rr4 => self.r_r4 = value,
+            RegisterIndex::Rr5 => self.r_r5 = value,
+            RegisterIndex::Rr6 => self.r_r6 = value,
+            RegisterIndex::Rr7 => self.r_r7 = value,
+            RegisterIndex::Rpc => self.r_pc = value,
+            RegisterIndex::Rcond => self.r_cond = value,
+            _ => panic!("Invalid register index"),
         }
     }
 }
@@ -93,5 +124,11 @@ impl Emulator {
 }
 
 fn main() {
-    println!("Hello, world!");
+    let mut emu = Emulator::new();
+    emu.registers.update(
+        RegisterIndex::Rcond,
+        ConditionFlag::get_cflag_value(ConditionFlag::FlZro),
+    );
+
+    println!("{:?}", emu.registers);
 }
