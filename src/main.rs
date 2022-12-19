@@ -3,7 +3,7 @@ use std::{convert::TryFrom, env, fs::File, path::PathBuf};
 const PC_START: u16 = 0x3000;
 const MEMORY_MAX: usize = 1 << 16;
 
-#[repr(u8)]
+#[repr(u16)]
 enum Register {
     Rr0 = 0,
     Rr1,
@@ -17,27 +17,27 @@ enum Register {
     Rcond,
 }
 
-impl TryFrom<u8> for Register {
+impl TryFrom<u16> for Register {
     type Error = ();
 
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
         match value {
-            x if x == Register::Rr0 as u8 => Ok(Register::Rr0),
-            x if x == Register::Rr1 as u8 => Ok(Register::Rr1),
-            x if x == Register::Rr2 as u8 => Ok(Register::Rr2),
-            x if x == Register::Rr3 as u8 => Ok(Register::Rr3),
-            x if x == Register::Rr4 as u8 => Ok(Register::Rr4),
-            x if x == Register::Rr5 as u8 => Ok(Register::Rr5),
-            x if x == Register::Rr6 as u8 => Ok(Register::Rr6),
-            x if x == Register::Rr7 as u8 => Ok(Register::Rr7),
-            x if x == Register::Rpc as u8 => Ok(Register::Rpc),
-            x if x == Register::Rcond as u8 => Ok(Register::Rcond),
+            x if x == Register::Rr0 as u16 => Ok(Register::Rr0),
+            x if x == Register::Rr1 as u16 => Ok(Register::Rr1),
+            x if x == Register::Rr2 as u16 => Ok(Register::Rr2),
+            x if x == Register::Rr3 as u16 => Ok(Register::Rr3),
+            x if x == Register::Rr4 as u16 => Ok(Register::Rr4),
+            x if x == Register::Rr5 as u16 => Ok(Register::Rr5),
+            x if x == Register::Rr6 as u16 => Ok(Register::Rr6),
+            x if x == Register::Rr7 as u16 => Ok(Register::Rr7),
+            x if x == Register::Rpc as u16 => Ok(Register::Rpc),
+            x if x == Register::Rcond as u16 => Ok(Register::Rcond),
             _ => Err(()),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 struct Registers {
     r_r0: u16,
     r_r1: u16,
@@ -83,7 +83,7 @@ impl Registers {
         }
     }
 
-    pub fn get(self, reg: Register) -> u16 {
+    pub fn get_value(self, reg: Register) -> u16 {
         match reg {
             Register::Rr0 => self.r_r0,
             Register::Rr1 => self.r_r1,
@@ -162,9 +162,10 @@ impl TryFrom<u16> for Instruction {
     }
 }
 
+#[derive(Clone)]
 struct Instructions {
     op_br: fn(),
-    op_add: fn(),
+    op_add: fn(&mut Emulator, u16),
     op_ld: fn(),
     op_st: fn(),
     op_jsr: fn(),
@@ -184,7 +185,7 @@ impl Instructions {
     pub fn new() -> Self {
         Instructions {
             op_br: help,
-            op_add: help,
+            op_add,
             op_ld: help,
             op_st: help,
             op_jsr: help,
@@ -201,10 +202,10 @@ impl Instructions {
         }
     }
 
-    pub fn call(&self, instr: Instruction) {
-        match instr {
+    pub fn call(&self, i: Instruction, emu: &mut Emulator, instr: u16) {
+        match i {
             Instruction::OpBr => (self.op_br)(),
-            Instruction::OpAdd => (self.op_add)(),
+            Instruction::OpAdd => (self.op_add)(emu, instr),
             Instruction::OpLd => (self.op_ld)(),
             Instruction::OpSt => (self.op_st)(),
             Instruction::OpJsr => (self.op_jsr)(),
@@ -222,6 +223,7 @@ impl Instructions {
     }
 }
 
+#[derive(Clone)]
 struct Mmu {
     memory: Vec<u16>,
 }
@@ -234,6 +236,7 @@ impl Mmu {
     }
 }
 
+#[derive(Clone)]
 struct Emulator {
     pub memory: Mmu,
     pub registers: Registers,
@@ -257,6 +260,34 @@ fn help() {
         Options:
             <binary>    Binary to emulate."
     );
+}
+
+fn sign_extend(mut x: u16, bit_count: u8) -> u16 {
+    if (x >> (bit_count - 1)) & 1 != 0 {
+        x |= 0xFFFF << bit_count;
+    }
+    x
+}
+
+fn op_add(emu: &mut Emulator, instr: u16) {
+    let dr: u16 = (instr >> 9) & 0x7;
+    let sr1: u16 = (instr >> 6) & 0x7;
+    let imm_flag: u16 = (instr >> 5) & 0x1;
+    let r1: u16 = emu.registers.get_value(Register::try_from(sr1).unwrap());
+    println!("dr {}", dr);
+    println!("r1 {} sr1 {}", r1, sr1);
+
+    if imm_flag == 1 {
+        let imm5: u16 = sign_extend(instr & 0x1F, 5);
+        emu.registers
+            .update(Register::try_from(dr).unwrap(), r1 + imm5);
+    } else {
+        let sr2: u16 = instr & 0x7;
+        let r2: u16 = emu.registers.get_value(Register::try_from(sr2).unwrap());
+        println!("r2 {} sr2 {}", r2, sr2);
+        emu.registers
+            .update(Register::try_from(dr).unwrap(), r1 + r2);
+    }
 }
 
 fn main() {
@@ -286,6 +317,8 @@ fn main() {
         Register::Rcond,
         ConditionFlag::get_cflag_value(ConditionFlag::FlZro),
     );
+    emu.registers.update(Register::Rr1, 10);
+    emu.registers.update(Register::Rr2, 11);
 
     emu.registers.update(Register::Rpc, PC_START);
 
@@ -296,13 +329,14 @@ fn main() {
     while running {
         // TODO fetch instruction and match op
 
-        instr = 0b0001000001000011;
+        instr = 0b0001011001000010;
         op = Instruction::try_from(instr >> 12);
+        println!("Instr: {:b}", instr);
 
         match op {
             Ok(op) => {
                 println!("{:?}", op);
-                emu.instructions.call(op);
+                emu.instructions.clone().call(op, &mut emu, instr);
                 running = false;
             }
             Err(_) => eprintln!("Invalid instruction"),
