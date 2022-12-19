@@ -119,7 +119,7 @@ impl ConditionFlag {
 
 #[derive(Debug)]
 #[repr(u16)]
-enum Instruction {
+enum Opcode {
     OpBr = 0,
     OpAdd,
     OpLd,
@@ -137,33 +137,33 @@ enum Instruction {
     OpTrap,
 }
 
-impl TryFrom<u16> for Instruction {
+impl TryFrom<u16> for Opcode {
     type Error = ();
 
-    fn try_from(v: u16) -> Result<Self, Self::Error> {
-        match v {
-            x if x == Instruction::OpBr as u16 => Ok(Instruction::OpBr),
-            x if x == Instruction::OpAdd as u16 => Ok(Instruction::OpAdd),
-            x if x == Instruction::OpLd as u16 => Ok(Instruction::OpLd),
-            x if x == Instruction::OpSt as u16 => Ok(Instruction::OpSt),
-            x if x == Instruction::OpJsr as u16 => Ok(Instruction::OpJsr),
-            x if x == Instruction::OpAnd as u16 => Ok(Instruction::OpAnd),
-            x if x == Instruction::OpLdr as u16 => Ok(Instruction::OpLdr),
-            x if x == Instruction::OpStr as u16 => Ok(Instruction::OpStr),
-            x if x == Instruction::OpRti as u16 => Ok(Instruction::OpRti),
-            x if x == Instruction::OpNot as u16 => Ok(Instruction::OpNot),
-            x if x == Instruction::OpLdi as u16 => Ok(Instruction::OpLdi),
-            x if x == Instruction::OpSti as u16 => Ok(Instruction::OpSti),
-            x if x == Instruction::OpRes as u16 => Ok(Instruction::OpRes),
-            x if x == Instruction::OpLea as u16 => Ok(Instruction::OpLea),
-            x if x == Instruction::OpTrap as u16 => Ok(Instruction::OpTrap),
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        match value {
+            x if x == Opcode::OpBr as u16 => Ok(Opcode::OpBr),
+            x if x == Opcode::OpAdd as u16 => Ok(Opcode::OpAdd),
+            x if x == Opcode::OpLd as u16 => Ok(Opcode::OpLd),
+            x if x == Opcode::OpSt as u16 => Ok(Opcode::OpSt),
+            x if x == Opcode::OpJsr as u16 => Ok(Opcode::OpJsr),
+            x if x == Opcode::OpAnd as u16 => Ok(Opcode::OpAnd),
+            x if x == Opcode::OpLdr as u16 => Ok(Opcode::OpLdr),
+            x if x == Opcode::OpStr as u16 => Ok(Opcode::OpStr),
+            x if x == Opcode::OpRti as u16 => Ok(Opcode::OpRti),
+            x if x == Opcode::OpNot as u16 => Ok(Opcode::OpNot),
+            x if x == Opcode::OpLdi as u16 => Ok(Opcode::OpLdi),
+            x if x == Opcode::OpSti as u16 => Ok(Opcode::OpSti),
+            x if x == Opcode::OpRes as u16 => Ok(Opcode::OpRes),
+            x if x == Opcode::OpLea as u16 => Ok(Opcode::OpLea),
+            x if x == Opcode::OpTrap as u16 => Ok(Opcode::OpTrap),
             _ => Err(()),
         }
     }
 }
 
 #[derive(Clone)]
-struct Instructions {
+struct Opcodes {
     op_br: fn(),
     op_add: fn(&mut Emulator, u16),
     op_ld: fn(),
@@ -181,9 +181,9 @@ struct Instructions {
     op_trap: fn(),
 }
 
-impl Instructions {
+impl Opcodes {
     pub fn new() -> Self {
-        Instructions {
+        Opcodes {
             op_br: help,
             op_add,
             op_ld: help,
@@ -202,23 +202,23 @@ impl Instructions {
         }
     }
 
-    pub fn call(&self, i: Instruction, emu: &mut Emulator, instr: u16) {
-        match i {
-            Instruction::OpBr => (self.op_br)(),
-            Instruction::OpAdd => (self.op_add)(emu, instr),
-            Instruction::OpLd => (self.op_ld)(),
-            Instruction::OpSt => (self.op_st)(),
-            Instruction::OpJsr => (self.op_jsr)(),
-            Instruction::OpAnd => (self.op_and)(),
-            Instruction::OpLdr => (self.op_ldr)(),
-            Instruction::OpStr => (self.op_str)(),
-            Instruction::OpRti => (self.op_rti)(),
-            Instruction::OpNot => (self.op_not)(),
-            Instruction::OpLdi => (self.op_ldi)(),
-            Instruction::OpSti => (self.op_sti)(),
-            Instruction::OpRes => (self.op_res)(),
-            Instruction::OpLea => (self.op_lea)(),
-            Instruction::OpTrap => (self.op_trap)(),
+    pub fn call(&self, op: Opcode, emu: &mut Emulator, instr: u16) {
+        match op {
+            Opcode::OpBr => (self.op_br)(),
+            Opcode::OpAdd => (self.op_add)(emu, instr),
+            Opcode::OpLd => (self.op_ld)(),
+            Opcode::OpSt => (self.op_st)(),
+            Opcode::OpJsr => (self.op_jsr)(),
+            Opcode::OpAnd => (self.op_and)(),
+            Opcode::OpLdr => (self.op_ldr)(),
+            Opcode::OpStr => (self.op_str)(),
+            Opcode::OpRti => (self.op_rti)(),
+            Opcode::OpNot => (self.op_not)(),
+            Opcode::OpLdi => (self.op_ldi)(),
+            Opcode::OpSti => (self.op_sti)(),
+            Opcode::OpRes => (self.op_res)(),
+            Opcode::OpLea => (self.op_lea)(),
+            Opcode::OpTrap => (self.op_trap)(),
         }
     }
 }
@@ -240,7 +240,7 @@ impl Mmu {
 struct Emulator {
     pub memory: Mmu,
     pub registers: Registers,
-    pub instructions: Instructions,
+    pub opcodes: Opcodes,
 }
 
 impl Emulator {
@@ -248,7 +248,7 @@ impl Emulator {
         Emulator {
             memory: Mmu::new(),
             registers: Registers::new(),
-            instructions: Instructions::new(),
+            opcodes: Opcodes::new(),
         }
     }
 }
@@ -274,8 +274,6 @@ fn op_add(emu: &mut Emulator, instr: u16) {
     let sr1: u16 = (instr >> 6) & 0x7;
     let imm_flag: u16 = (instr >> 5) & 0x1;
     let r1: u16 = emu.registers.get_value(Register::try_from(sr1).unwrap());
-    println!("dr {}", dr);
-    println!("r1 {} sr1 {}", r1, sr1);
 
     if imm_flag == 1 {
         let imm5: u16 = sign_extend(instr & 0x1F, 5);
@@ -284,7 +282,6 @@ fn op_add(emu: &mut Emulator, instr: u16) {
     } else {
         let sr2: u16 = instr & 0x7;
         let r2: u16 = emu.registers.get_value(Register::try_from(sr2).unwrap());
-        println!("r2 {} sr2 {}", r2, sr2);
         emu.registers
             .update(Register::try_from(dr).unwrap(), r1 + r2);
     }
@@ -324,24 +321,24 @@ fn main() {
 
     let mut running = true;
     let mut instr: u16;
-    let mut op: Result<Instruction, ()>;
+    let mut op: Result<Opcode, ()>;
 
     while running {
         // TODO fetch instruction and match op
 
         instr = 0b0001011001000010;
-        op = Instruction::try_from(instr >> 12);
-        println!("Instr: {:b}", instr);
+        op = Opcode::try_from(instr >> 12);
 
-        match op {
-            Ok(op) => {
-                println!("{:?}", op);
-                emu.instructions.clone().call(op, &mut emu, instr);
-                running = false;
-            }
-            Err(_) => eprintln!("Invalid instruction"),
+        println!("Instruction {:b}", instr);
+
+        if let Ok(op) = op {
+            println!("Opcode {:?}", op);
+            emu.opcodes.clone().call(op, &mut emu, instr);
+            running = false;
+        } else {
+            eprintln!("Invalid instruction")
         }
-    }
 
-    println!("{:?}", emu.registers);
+        println!("{:?}", emu.registers);
+    }
 }
