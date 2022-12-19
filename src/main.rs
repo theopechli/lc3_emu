@@ -79,7 +79,6 @@ impl Registers {
             Register::Rr7 => self.r_r7 = value,
             Register::Rpc => self.r_pc = value,
             Register::Rcond => self.r_cond = value,
-            _ => panic!("Invalid register index"),
         }
     }
 
@@ -95,7 +94,6 @@ impl Registers {
             Register::Rr7 => self.r_r7,
             Register::Rpc => self.r_pc,
             Register::Rcond => self.r_cond,
-            _ => panic!("Invalid register index"),
         }
     }
 }
@@ -269,6 +267,27 @@ fn sign_extend(mut x: u16, bit_count: u8) -> u16 {
     x
 }
 
+fn update_flags(emu: &mut Emulator, reg: u16) {
+    let r: u16 = emu.registers.get_value(Register::try_from(reg).unwrap());
+
+    if r == 0 {
+        emu.registers.update(
+            Register::Rcond,
+            ConditionFlag::get_cflag_value(ConditionFlag::FlZro),
+        );
+    } else if r >> 15 == 1 {
+        emu.registers.update(
+            Register::Rcond,
+            ConditionFlag::get_cflag_value(ConditionFlag::FlNeg),
+        );
+    } else {
+        emu.registers.update(
+            Register::Rcond,
+            ConditionFlag::get_cflag_value(ConditionFlag::FlPos),
+        );
+    }
+}
+
 fn op_add(emu: &mut Emulator, instr: u16) {
     let dr: u16 = (instr >> 9) & 0x7;
     let sr1: u16 = (instr >> 6) & 0x7;
@@ -285,6 +304,8 @@ fn op_add(emu: &mut Emulator, instr: u16) {
         emu.registers
             .update(Register::try_from(dr).unwrap(), r1 + r2);
     }
+
+    update_flags(emu, dr);
 }
 
 fn main() {
