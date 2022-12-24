@@ -165,7 +165,7 @@ struct Opcodes {
     op_br: fn(&mut Emulator, u16),
     op_add: fn(&mut Emulator, u16),
     op_ld: fn(&mut Emulator, u16),
-    op_st: fn(),
+    op_st: fn(&mut Emulator, u16),
     op_jsr: fn(&mut Emulator, u16),
     op_and: fn(&mut Emulator, u16),
     op_ldr: fn(&mut Emulator, u16),
@@ -185,7 +185,7 @@ impl Opcodes {
             op_br,
             op_add,
             op_ld,
-            op_st: help,
+            op_st,
             op_jsr,
             op_and,
             op_ldr,
@@ -205,7 +205,7 @@ impl Opcodes {
             Opcode::OpBr => (self.op_br)(emu, instr),
             Opcode::OpAdd => (self.op_add)(emu, instr),
             Opcode::OpLd => (self.op_ld)(emu, instr),
-            Opcode::OpSt => (self.op_st)(),
+            Opcode::OpSt => (self.op_st)(emu, instr),
             Opcode::OpJsr => (self.op_jsr)(emu, instr),
             Opcode::OpAnd => (self.op_and)(emu, instr),
             Opcode::OpLdr => (self.op_ldr)(emu, instr),
@@ -422,7 +422,9 @@ fn op_ldi(emu: &mut Emulator, instr: u16) {
     let dr: u16 = (instr >> 9) & 0x7;
     let pc_offset: u16 = sign_extend(instr & 0x1FF, 9);
 
-    let x: u16 = emu.memory.read((Register::Rpc as u16 + pc_offset).into());
+    let x: u16 = emu
+        .memory
+        .read((emu.registers.get_value(Register::Rpc) as u16 + pc_offset).into());
     emu.registers
         .update(Register::try_from(dr).unwrap(), emu.memory.read(x.into()));
 
@@ -467,6 +469,16 @@ fn op_not(emu: &mut Emulator, instr: u16) {
     update_flags(emu, dr);
 }
 
+fn op_st(emu: &mut Emulator, instr: u16) {
+    let sr: u16 = (instr >> 9) & 0x7;
+    let pc_offset: u16 = sign_extend(instr & 0x1FF, 9);
+
+    emu.memory.write(
+        (emu.registers.get_value(Register::Rpc) as u16 + pc_offset).into(),
+        emu.registers.get_value(Register::try_from(sr).unwrap()),
+    );
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -506,7 +518,7 @@ fn main() {
     while running {
         // TODO fetch instruction and match op
 
-        instr = 0b1001011101010101;
+        instr = 0b0011011101010101;
         op = Opcode::try_from(instr >> 12);
 
         println!("Instruction {:b}", instr);
