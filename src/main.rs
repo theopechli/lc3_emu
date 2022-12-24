@@ -171,7 +171,7 @@ struct Opcodes {
     op_ldr: fn(&mut Emulator, u16),
     op_str: fn(),
     op_rti: fn(),
-    op_not: fn(),
+    op_not: fn(&mut Emulator, u16),
     op_ldi: fn(&mut Emulator, u16),
     op_sti: fn(),
     op_res: fn(&mut Emulator, u16),
@@ -191,7 +191,7 @@ impl Opcodes {
             op_ldr,
             op_str: help,
             op_rti: help,
-            op_not: help,
+            op_not,
             op_ldi,
             op_sti: help,
             op_res,
@@ -211,7 +211,7 @@ impl Opcodes {
             Opcode::OpLdr => (self.op_ldr)(emu, instr),
             Opcode::OpStr => (self.op_str)(),
             Opcode::OpRti => (self.op_rti)(),
-            Opcode::OpNot => (self.op_not)(),
+            Opcode::OpNot => (self.op_not)(emu, instr),
             Opcode::OpLdi => (self.op_ldi)(emu, instr),
             Opcode::OpSti => (self.op_sti)(),
             Opcode::OpRes => (self.op_res)(emu, instr),
@@ -455,6 +455,18 @@ fn op_lea(emu: &mut Emulator, instr: u16) {
     update_flags(emu, dr);
 }
 
+fn op_not(emu: &mut Emulator, instr: u16) {
+    let dr: u16 = (instr >> 9) & 0x7;
+    let sr: u16 = (instr >> 6) & 0x7;
+
+    emu.registers.update(
+        Register::try_from(dr).unwrap(),
+        !emu.registers.get_value(Register::try_from(sr).unwrap()),
+    );
+
+    update_flags(emu, dr);
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -494,7 +506,7 @@ fn main() {
     while running {
         // TODO fetch instruction and match op
 
-        instr = 0b1110011101010101;
+        instr = 0b1001011101010101;
         op = Opcode::try_from(instr >> 12);
 
         println!("Instruction {:b}", instr);
