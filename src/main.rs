@@ -166,7 +166,7 @@ struct Opcodes {
     op_add: fn(&mut Emulator, u16),
     op_ld: fn(),
     op_st: fn(),
-    op_jsr: fn(),
+    op_jsr: fn(&mut Emulator, u16),
     op_and: fn(&mut Emulator, u16),
     op_ldr: fn(),
     op_str: fn(),
@@ -186,7 +186,7 @@ impl Opcodes {
             op_add,
             op_ld: help,
             op_st: help,
-            op_jsr: help,
+            op_jsr,
             op_and,
             op_ldr: help,
             op_str: help,
@@ -206,7 +206,7 @@ impl Opcodes {
             Opcode::OpAdd => (self.op_add)(emu, instr),
             Opcode::OpLd => (self.op_ld)(),
             Opcode::OpSt => (self.op_st)(),
-            Opcode::OpJsr => (self.op_jsr)(),
+            Opcode::OpJsr => (self.op_jsr)(emu, instr),
             Opcode::OpAnd => (self.op_and)(emu, instr),
             Opcode::OpLdr => (self.op_ldr)(),
             Opcode::OpStr => (self.op_str)(),
@@ -377,8 +377,24 @@ fn op_res(emu: &mut Emulator, instr: u16) {
     );
 }
 
+fn op_jsr(emu: &mut Emulator, instr: u16) {
+    emu.registers
+        .update(Register::Rr7, emu.registers.get_value(Register::Rpc));
+
+    if instr & 0xB != 0 {
+        let pc_offset: u16 = sign_extend(instr & 0x3FF, 11);
+        emu.registers.update(
+            Register::Rpc,
+            emu.registers.get_value(Register::Rpc) + pc_offset,
+        );
+    } else {
+        let base_r: u16 = (instr >> 6) & 0x7;
+        emu.registers.update(Register::Rpc, base_r);
+    }
+}
+
 fn op_br(emu: &mut Emulator, instr: u16) {
-    let cond_flag: u16 = ((instr >> 9) & 0x7);
+    let cond_flag: u16 = (instr >> 9) & 0x7;
     let pc_offset: u16 = sign_extend(instr & 0x1FF, 9);
     let r_cond = emu.registers.get_value(Register::Rcond);
 
@@ -440,7 +456,7 @@ fn main() {
     while running {
         // TODO fetch instruction and match op
 
-        instr = 0b1100011001000010;
+        instr = 0b0100011001000010;
         op = Opcode::try_from(instr >> 12);
 
         println!("Instruction {:b}", instr);
