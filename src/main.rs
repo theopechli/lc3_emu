@@ -167,7 +167,7 @@ struct Opcodes {
     op_ld: fn(),
     op_st: fn(),
     op_jsr: fn(),
-    op_and: fn(),
+    op_and: fn(&mut Emulator, u16),
     op_ldr: fn(),
     op_str: fn(),
     op_rti: fn(),
@@ -187,7 +187,7 @@ impl Opcodes {
             op_ld: help,
             op_st: help,
             op_jsr: help,
-            op_and: help,
+            op_and,
             op_ldr: help,
             op_str: help,
             op_rti: help,
@@ -207,7 +207,7 @@ impl Opcodes {
             Opcode::OpLd => (self.op_ld)(),
             Opcode::OpSt => (self.op_st)(),
             Opcode::OpJsr => (self.op_jsr)(),
-            Opcode::OpAnd => (self.op_and)(),
+            Opcode::OpAnd => (self.op_and)(emu, instr),
             Opcode::OpLdr => (self.op_ldr)(),
             Opcode::OpStr => (self.op_str)(),
             Opcode::OpRti => (self.op_rti)(),
@@ -332,34 +332,49 @@ fn update_flags(emu: &mut Emulator, reg: u16) {
 fn op_add(emu: &mut Emulator, instr: u16) {
     let dr: u16 = (instr >> 9) & 0x7;
     let sr1: u16 = (instr >> 6) & 0x7;
-    let imm_flag: u16 = (instr >> 5) & 0x1;
     let r1: u16 = emu.registers.get_value(Register::try_from(sr1).unwrap());
+    let imm_flag: u16 = (instr >> 5) & 0x1;
 
-    if imm_flag == 1 {
-        let imm5: u16 = sign_extend(instr & 0x1F, 5);
-        emu.registers
-            .update(Register::try_from(dr).unwrap(), r1 + imm5);
-    } else {
+    if imm_flag == 0 {
         let sr2: u16 = instr & 0x7;
         let r2: u16 = emu.registers.get_value(Register::try_from(sr2).unwrap());
         emu.registers
             .update(Register::try_from(dr).unwrap(), r1 + r2);
+    } else {
+        let imm5: u16 = sign_extend(instr & 0x1F, 5);
+        emu.registers
+            .update(Register::try_from(dr).unwrap(), r1 + imm5);
+    }
+
+    update_flags(emu, dr);
+}
+
+fn op_and(emu: &mut Emulator, instr: u16) {
+    let dr: u16 = (instr >> 9) & 0x7;
+    let sr1: u16 = (instr >> 6) & 0x7;
+    let r1: u16 = emu.registers.get_value(Register::try_from(sr1).unwrap());
+    let imm_flag: u16 = instr & 0x20;
+
+    if imm_flag == 0 {
+        let sr2: u16 = instr & 0x7;
+        let r2: u16 = emu.registers.get_value(Register::try_from(sr2).unwrap());
+        emu.registers
+            .update(Register::try_from(dr).unwrap(), r1 & r2);
+    } else {
+        let imm5: u16 = sign_extend(instr & 0x1F, 5);
+        emu.registers
+            .update(Register::try_from(dr).unwrap(), r1 & imm5);
     }
 
     update_flags(emu, dr);
 }
 
 fn op_br(emu: &mut Emulator, instr: u16) {
-    let n: u8 = ((instr >> 11) & 0x1).try_into().unwrap();
-    let z: u8 = ((instr >> 10) & 0x1).try_into().unwrap();
-    let p: u8 = ((instr >> 9) & 0x1).try_into().unwrap();
+    let cond_flag: u16 = ((instr >> 9) & 0x7);
     let pc_offset: u16 = sign_extend(instr & 0x1FF, 9);
-
     let r_cond = emu.registers.get_value(Register::Rcond);
-    if (n != 0 && (r_cond & 0x4 != 0))
-        || (z != 0 && (r_cond & 0x2 != 0))
-        || (p != 0 && (r_cond & 0x1 != 0))
-    {
+
+    if cond_flag & r_cond != 0 {
         emu.registers.update(
             Register::Rpc,
             emu.registers.get_value(Register::Rpc) + pc_offset,
