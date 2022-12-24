@@ -162,7 +162,7 @@ impl TryFrom<u16> for Opcode {
 
 #[derive(Clone)]
 struct Opcodes {
-    op_br: fn(),
+    op_br: fn(&mut Emulator, u16),
     op_add: fn(&mut Emulator, u16),
     op_ld: fn(),
     op_st: fn(),
@@ -172,7 +172,7 @@ struct Opcodes {
     op_str: fn(),
     op_rti: fn(),
     op_not: fn(),
-    op_ldi: fn(),
+    op_ldi: fn(&mut Emulator, u16),
     op_sti: fn(),
     op_res: fn(),
     op_lea: fn(),
@@ -182,7 +182,7 @@ struct Opcodes {
 impl Opcodes {
     pub fn new() -> Self {
         Opcodes {
-            op_br: help,
+            op_br,
             op_add,
             op_ld: help,
             op_st: help,
@@ -192,7 +192,7 @@ impl Opcodes {
             op_str: help,
             op_rti: help,
             op_not: help,
-            op_ldi: help,
+            op_ldi,
             op_sti: help,
             op_res: help,
             op_lea: help,
@@ -202,7 +202,7 @@ impl Opcodes {
 
     pub fn call(&self, op: Opcode, emu: &mut Emulator, instr: u16) {
         match op {
-            Opcode::OpBr => (self.op_br)(),
+            Opcode::OpBr => (self.op_br)(emu, instr),
             Opcode::OpAdd => (self.op_add)(emu, instr),
             Opcode::OpLd => (self.op_ld)(),
             Opcode::OpSt => (self.op_st)(),
@@ -212,7 +212,7 @@ impl Opcodes {
             Opcode::OpStr => (self.op_str)(),
             Opcode::OpRti => (self.op_rti)(),
             Opcode::OpNot => (self.op_not)(),
-            Opcode::OpLdi => (self.op_ldi)(),
+            Opcode::OpLdi => (self.op_ldi)(emu, instr),
             Opcode::OpSti => (self.op_sti)(),
             Opcode::OpRes => (self.op_res)(),
             Opcode::OpLea => (self.op_lea)(),
@@ -349,6 +349,24 @@ fn op_add(emu: &mut Emulator, instr: u16) {
     update_flags(emu, dr);
 }
 
+fn op_br(emu: &mut Emulator, instr: u16) {
+    let n: u8 = ((instr >> 11) & 0x1).try_into().unwrap();
+    let z: u8 = ((instr >> 10) & 0x1).try_into().unwrap();
+    let p: u8 = ((instr >> 9) & 0x1).try_into().unwrap();
+    let pc_offset: u16 = sign_extend(instr & 0x1FF, 9);
+
+    let r_cond = emu.registers.get_value(Register::Rcond);
+    if (n != 0 && (r_cond & 0x4 != 0))
+        || (z != 0 && (r_cond & 0x2 != 0))
+        || (p != 0 && (r_cond & 0x1 != 0))
+    {
+        emu.registers.update(
+            Register::Rpc,
+            emu.registers.get_value(Register::Rpc) + pc_offset,
+        );
+    }
+}
+
 fn op_ldi(emu: &mut Emulator, instr: u16) {
     let dr: u16 = (instr >> 9) & 0x7;
     let pc_offset: u16 = sign_extend(instr & 0x1FF, 9);
@@ -399,7 +417,7 @@ fn main() {
     while running {
         // TODO fetch instruction and match op
 
-        instr = 0b0001011001000010;
+        instr = 0b1010011001000010;
         op = Opcode::try_from(instr >> 12);
 
         println!("Instruction {:b}", instr);
