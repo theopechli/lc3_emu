@@ -169,7 +169,7 @@ struct Opcodes {
     op_jsr: fn(&mut Emulator, u16),
     op_and: fn(&mut Emulator, u16),
     op_ldr: fn(&mut Emulator, u16),
-    op_str: fn(),
+    op_str: fn(&mut Emulator, u16),
     op_rti: fn(),
     op_not: fn(&mut Emulator, u16),
     op_ldi: fn(&mut Emulator, u16),
@@ -189,7 +189,7 @@ impl Opcodes {
             op_jsr,
             op_and,
             op_ldr,
-            op_str: help,
+            op_str,
             op_rti: help,
             op_not,
             op_ldi,
@@ -209,7 +209,7 @@ impl Opcodes {
             Opcode::OpJsr => (self.op_jsr)(emu, instr),
             Opcode::OpAnd => (self.op_and)(emu, instr),
             Opcode::OpLdr => (self.op_ldr)(emu, instr),
-            Opcode::OpStr => (self.op_str)(),
+            Opcode::OpStr => (self.op_str)(emu, instr),
             Opcode::OpRti => (self.op_rti)(),
             Opcode::OpNot => (self.op_not)(emu, instr),
             Opcode::OpLdi => (self.op_ldi)(emu, instr),
@@ -492,6 +492,17 @@ fn op_sti(emu: &mut Emulator, instr: u16) {
     );
 }
 
+fn op_str(emu: &mut Emulator, instr: u16) {
+    let sr: u16 = (instr >> 9) & 0x7;
+    let base_r: u16 = (instr >> 6) & 0x7;
+    let offset: u16 = sign_extend(instr & 0x3F, 6);
+
+    emu.memory.write(
+        (emu.registers.get_value(Register::try_from(base_r).unwrap()) as u16 + offset).into(),
+        emu.registers.get_value(Register::try_from(sr).unwrap()),
+    );
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -531,7 +542,7 @@ fn main() {
     while running {
         // TODO fetch instruction and match op
 
-        instr = 0b1011011101010101;
+        instr = 0b0111011101010101;
         op = Opcode::try_from(instr >> 12);
 
         println!("Instruction {:b}", instr);
