@@ -131,8 +131,8 @@ enum Opcode {
     OpLdi,
     OpSti,
     OpRes,
-    OpLea,
-    OpTrap,
+    OpLea = 14,
+    OpTrap = 15,
 }
 
 impl TryFrom<u16> for Opcode {
@@ -175,7 +175,7 @@ struct Opcodes {
     op_ldi: fn(&mut Emulator, u16),
     op_sti: fn(),
     op_res: fn(&mut Emulator, u16),
-    op_lea: fn(),
+    op_lea: fn(&mut Emulator, u16),
     op_trap: fn(),
 }
 
@@ -195,7 +195,7 @@ impl Opcodes {
             op_ldi,
             op_sti: help,
             op_res,
-            op_lea: help,
+            op_lea,
             op_trap: help,
         }
     }
@@ -215,7 +215,7 @@ impl Opcodes {
             Opcode::OpLdi => (self.op_ldi)(emu, instr),
             Opcode::OpSti => (self.op_sti)(),
             Opcode::OpRes => (self.op_res)(emu, instr),
-            Opcode::OpLea => (self.op_lea)(),
+            Opcode::OpLea => (self.op_lea)(emu, instr),
             Opcode::OpTrap => (self.op_trap)(),
         }
     }
@@ -443,6 +443,18 @@ fn op_ldr(emu: &mut Emulator, instr: u16) {
     update_flags(emu, dr);
 }
 
+fn op_lea(emu: &mut Emulator, instr: u16) {
+    let dr: u16 = (instr >> 9) & 0x7;
+    let pc_offset: u16 = sign_extend(instr & 0x1FF, 9);
+
+    emu.registers.update(
+        Register::try_from(dr).unwrap(),
+        emu.registers.get_value(Register::Rpc) + pc_offset,
+    );
+
+    update_flags(emu, dr);
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -482,7 +494,7 @@ fn main() {
     while running {
         // TODO fetch instruction and match op
 
-        instr = 0b0110011001000010;
+        instr = 0b1110011101010101;
         op = Opcode::try_from(instr >> 12);
 
         println!("Instruction {:b}", instr);
