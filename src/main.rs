@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, env, fs::File, path::PathBuf};
+use std::{convert::TryFrom, env, fs::File, io::BufReader, io::Read, path::PathBuf};
 
 const PC_START: u16 = 0x3000;
 const MEMORY_MAX: usize = 1 << 16;
@@ -232,6 +232,15 @@ impl Mmu {
             memory: vec![0; MEMORY_MAX],
         }
     }
+
+    pub fn write(&mut self, address: usize, value: u16) {
+        self.memory[address] = value;
+    }
+
+    pub fn read(&mut self, address: usize) -> u16 {
+        let value = self.memory[address];
+        value
+    }
 }
 
 #[derive(Clone)]
@@ -258,6 +267,38 @@ fn help() {
         Options:
             <binary>    Binary to emulate."
     );
+}
+
+fn read_n<R>(reader: R, bytes_to_read: u64) -> Vec<u8>
+where
+    R: Read,
+{
+    let mut buf = vec![];
+    let mut chunk = reader.take(bytes_to_read);
+    chunk.read_to_end(&mut buf).expect("Not enough bytes read");
+    buf
+}
+
+fn be_to_le(buf: &mut Vec<u8>) {
+    let mut tmp: u8;
+    for i in (0..buf.len()).step_by(2) {
+        tmp = buf[i + 1];
+        buf[i + 1] = buf[i];
+        buf[i] = tmp;
+    }
+}
+
+fn read_image_file(file: File) {
+    let mut reader = BufReader::new(file);
+
+    let mut origin = read_n(reader.by_ref(), 2);
+    be_to_le(&mut origin);
+
+    let mut rest = read_n(
+        reader.by_ref(),
+        (MEMORY_MAX - origin.len()).try_into().unwrap(),
+    );
+    be_to_le(&mut rest);
 }
 
 fn sign_extend(mut x: u16, bit_count: u8) -> u16 {
@@ -304,6 +345,17 @@ fn op_add(emu: &mut Emulator, instr: u16) {
         emu.registers
             .update(Register::try_from(dr).unwrap(), r1 + r2);
     }
+
+    update_flags(emu, dr);
+}
+
+fn op_ldi(emu: &mut Emulator, instr: u16) {
+    let dr: u16 = (instr >> 9) & 0x7;
+    let pc_offset: u16 = sign_extend(instr & 0x1FF, 9);
+
+    let x: u16 = emu.memory.read((Register::Rpc as u16 + pc_offset).into());
+    emu.registers
+        .update(Register::try_from(dr).unwrap(), emu.memory.read(x.into()));
 
     update_flags(emu, dr);
 }
