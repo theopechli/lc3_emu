@@ -176,7 +176,7 @@ struct Opcodes {
     op_sti: fn(&mut Emulator, u16),
     op_res: fn(&mut Emulator, u16),
     op_lea: fn(&mut Emulator, u16),
-    op_trap: fn(),
+    op_trap: fn(&mut Emulator, u16),
 }
 
 impl Opcodes {
@@ -196,7 +196,7 @@ impl Opcodes {
             op_sti,
             op_res,
             op_lea,
-            op_trap: help,
+            op_trap,
         }
     }
 
@@ -216,7 +216,67 @@ impl Opcodes {
             Opcode::OpSti => (self.op_sti)(emu, instr),
             Opcode::OpRes => (self.op_res)(emu, instr),
             Opcode::OpLea => (self.op_lea)(emu, instr),
-            Opcode::OpTrap => (self.op_trap)(),
+            Opcode::OpTrap => (self.op_trap)(emu, instr),
+        }
+    }
+}
+
+#[repr(u8)]
+enum Trap {
+    TrapGetc = 0x20,
+    TrapOut,
+    TrapPuts,
+    TrapIn,
+    TrapPutsp,
+    TrapHalt,
+}
+
+impl TryFrom<u16> for Trap {
+    type Error = ();
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        match value {
+            x if x == Trap::TrapGetc as u16 => Ok(Trap::TrapGetc),
+            x if x == Trap::TrapOut as u16 => Ok(Trap::TrapOut),
+            x if x == Trap::TrapPuts as u16 => Ok(Trap::TrapPuts),
+            x if x == Trap::TrapIn as u16 => Ok(Trap::TrapIn),
+            x if x == Trap::TrapPutsp as u16 => Ok(Trap::TrapPutsp),
+            x if x == Trap::TrapHalt as u16 => Ok(Trap::TrapHalt),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct Traps {
+    trap_getc: fn(),
+    trap_out: fn(),
+    trap_puts: fn(),
+    trap_in: fn(),
+    trap_putsp: fn(),
+    trap_halt: fn(),
+}
+
+impl Traps {
+    fn new() -> Self {
+        Traps {
+            trap_getc: help,
+            trap_out: help,
+            trap_puts: help,
+            trap_in: help,
+            trap_putsp: help,
+            trap_halt: help,
+        }
+    }
+
+    fn call(&self, trap: Trap, emu: &mut Emulator, instr: u16) {
+        match trap {
+            Trap::TrapGetc => (self.trap_getc)(),
+            Trap::TrapOut => (self.trap_getc)(),
+            Trap::TrapPuts => (self.trap_getc)(),
+            Trap::TrapIn => (self.trap_getc)(),
+            Trap::TrapPutsp => (self.trap_getc)(),
+            Trap::TrapHalt => (self.trap_getc)(),
         }
     }
 }
@@ -248,6 +308,7 @@ struct Emulator {
     pub memory: Mmu,
     pub registers: Registers,
     pub opcodes: Opcodes,
+    pub traps: Traps,
 }
 
 impl Emulator {
@@ -256,6 +317,7 @@ impl Emulator {
             memory: Mmu::new(),
             registers: Registers::new(),
             opcodes: Opcodes::new(),
+            traps: Traps::new(),
         }
     }
 }
@@ -503,6 +565,13 @@ fn op_str(emu: &mut Emulator, instr: u16) {
     );
 }
 
+fn op_trap(emu: &mut Emulator, instr: u16) {
+    let trap = Trap::try_from(instr & 0xFF);
+    if let Ok(trap) = trap {
+        emu.traps.clone().call(trap, emu, instr);
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -542,7 +611,7 @@ fn main() {
     while running {
         // TODO fetch instruction and match op
 
-        instr = 0b0111011101010101;
+        instr = 0b1111011100100100;
         op = Opcode::try_from(instr >> 12);
 
         println!("Instruction {:b}", instr);
