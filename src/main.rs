@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, env, fs::File, io::BufReader, io::Read, path::PathBuf};
+use std::{convert::TryFrom, env, fs::File, io::BufReader, io::Read, path::PathBuf, str};
 
 const PC_START: u16 = 0x3000;
 const MEMORY_MAX: usize = 1 << 16;
@@ -250,8 +250,8 @@ impl TryFrom<u16> for Trap {
 #[derive(Clone)]
 struct Traps {
     trap_getc: fn(),
-    trap_out: fn(),
-    trap_puts: fn(),
+    trap_out: fn(&mut Emulator),
+    trap_puts: fn(&mut Emulator),
     trap_in: fn(),
     trap_putsp: fn(),
     trap_halt: fn(),
@@ -261,8 +261,8 @@ impl Traps {
     fn new() -> Self {
         Traps {
             trap_getc: help,
-            trap_out: help,
-            trap_puts: help,
+            trap_out,
+            trap_puts,
             trap_in: help,
             trap_putsp: help,
             trap_halt: help,
@@ -272,11 +272,11 @@ impl Traps {
     fn call(&self, trap: Trap, emu: &mut Emulator, instr: u16) {
         match trap {
             Trap::TrapGetc => (self.trap_getc)(),
-            Trap::TrapOut => (self.trap_getc)(),
-            Trap::TrapPuts => (self.trap_getc)(),
-            Trap::TrapIn => (self.trap_getc)(),
-            Trap::TrapPutsp => (self.trap_getc)(),
-            Trap::TrapHalt => (self.trap_getc)(),
+            Trap::TrapOut => (self.trap_out)(emu),
+            Trap::TrapPuts => (self.trap_puts)(emu),
+            Trap::TrapIn => (self.trap_in)(),
+            Trap::TrapPutsp => (self.trap_putsp)(),
+            Trap::TrapHalt => (self.trap_halt)(),
         }
     }
 }
@@ -570,6 +570,28 @@ fn op_trap(emu: &mut Emulator, instr: u16) {
     if let Ok(trap) = trap {
         emu.traps.clone().call(trap, emu, instr);
     }
+}
+
+fn trap_puts(emu: &mut Emulator) {
+    let mut c: u16 = emu
+        .memory
+        .read((emu.registers.get_value(Register::Rr0) as u16).into());
+
+    loop {
+        if c == 0 {
+            break;
+        }
+
+        print!("{}", c as u8 as char);
+        c += 1;
+    }
+}
+
+fn trap_out(emu: &mut Emulator) {
+    let c: u16 = emu
+        .memory
+        .read((emu.registers.get_value(Register::Rr0) as u16).into());
+    println!("{}", c as u8 as char);
 }
 
 fn main() {
