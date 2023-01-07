@@ -253,7 +253,7 @@ struct Traps {
     trap_out: fn(&mut Emulator),
     trap_puts: fn(&mut Emulator),
     trap_in: fn(&mut Emulator),
-    trap_putsp: fn(),
+    trap_putsp: fn(&mut Emulator),
     trap_halt: fn(),
 }
 
@@ -264,7 +264,7 @@ impl Traps {
             trap_out,
             trap_puts,
             trap_in,
-            trap_putsp: help,
+            trap_putsp,
             trap_halt: help,
         }
     }
@@ -275,7 +275,7 @@ impl Traps {
             Trap::TrapOut => (self.trap_out)(emu),
             Trap::TrapPuts => (self.trap_puts)(emu),
             Trap::TrapIn => (self.trap_in)(emu),
-            Trap::TrapPutsp => (self.trap_putsp)(),
+            Trap::TrapPutsp => (self.trap_putsp)(emu),
             Trap::TrapHalt => (self.trap_halt)(),
         }
     }
@@ -618,6 +618,31 @@ fn trap_in(emu: &mut Emulator) {
 
     emu.registers.update(Register::Rr0, value.unwrap());
     update_flags(emu, 0);
+}
+
+fn trap_putsp(emu: &mut Emulator) {
+    let mut c: u16 = emu
+        .memory
+        .read((emu.registers.get_value(Register::Rr0) as u16).into());
+
+    let mut c1: u8;
+    let mut c2: u8;
+
+    loop {
+        if c == 0 {
+            break;
+        }
+
+        c1 = c as u8;
+        c2 = (c >> 8) as u8;
+
+        print!("{}", c1 as char);
+        if (c2 != 0) {
+            print!("{}", c2 as char);
+        }
+
+        c += 1;
+    }
 }
 
 fn main() {
