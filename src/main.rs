@@ -249,7 +249,7 @@ impl TryFrom<u16> for Trap {
 
 #[derive(Clone)]
 struct Traps {
-    trap_getc: fn(),
+    trap_getc: fn(&mut Emulator),
     trap_out: fn(&mut Emulator),
     trap_puts: fn(&mut Emulator),
     trap_in: fn(),
@@ -260,7 +260,7 @@ struct Traps {
 impl Traps {
     fn new() -> Self {
         Traps {
-            trap_getc: help,
+            trap_getc,
             trap_out,
             trap_puts,
             trap_in: help,
@@ -271,7 +271,7 @@ impl Traps {
 
     fn call(&self, trap: Trap, emu: &mut Emulator, instr: u16) {
         match trap {
-            Trap::TrapGetc => (self.trap_getc)(),
+            Trap::TrapGetc => (self.trap_getc)(emu),
             Trap::TrapOut => (self.trap_out)(emu),
             Trap::TrapPuts => (self.trap_puts)(emu),
             Trap::TrapIn => (self.trap_in)(),
@@ -570,6 +570,17 @@ fn op_trap(emu: &mut Emulator, instr: u16) {
     if let Ok(trap) = trap {
         emu.traps.clone().call(trap, emu, instr);
     }
+}
+
+fn trap_getc(emu: &mut Emulator) {
+    let value: Option<u16> = std::io::stdin()
+        .bytes()
+        .next()
+        .and_then(|result| result.ok())
+        .map(|byte| byte as u16);
+
+    emu.registers.update(Register::Rr0, value.unwrap());
+    update_flags(emu, 0);
 }
 
 fn trap_puts(emu: &mut Emulator) {
