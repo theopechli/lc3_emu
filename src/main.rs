@@ -252,7 +252,7 @@ struct Traps {
     trap_getc: fn(&mut Emulator),
     trap_out: fn(&mut Emulator),
     trap_puts: fn(&mut Emulator),
-    trap_in: fn(),
+    trap_in: fn(&mut Emulator),
     trap_putsp: fn(),
     trap_halt: fn(),
 }
@@ -263,7 +263,7 @@ impl Traps {
             trap_getc,
             trap_out,
             trap_puts,
-            trap_in: help,
+            trap_in,
             trap_putsp: help,
             trap_halt: help,
         }
@@ -274,7 +274,7 @@ impl Traps {
             Trap::TrapGetc => (self.trap_getc)(emu),
             Trap::TrapOut => (self.trap_out)(emu),
             Trap::TrapPuts => (self.trap_puts)(emu),
-            Trap::TrapIn => (self.trap_in)(),
+            Trap::TrapIn => (self.trap_in)(emu),
             Trap::TrapPutsp => (self.trap_putsp)(),
             Trap::TrapHalt => (self.trap_halt)(),
         }
@@ -603,6 +603,21 @@ fn trap_out(emu: &mut Emulator) {
         .memory
         .read((emu.registers.get_value(Register::Rr0) as u16).into());
     println!("{}", c as u8 as char);
+}
+
+fn trap_in(emu: &mut Emulator) {
+    println!("Enter a character: ");
+
+    let value: Option<u16> = std::io::stdin()
+        .bytes()
+        .next()
+        .and_then(|result| result.ok())
+        .map(|byte| byte as u16);
+
+    println!("{}", value.unwrap());
+
+    emu.registers.update(Register::Rr0, value.unwrap());
+    update_flags(emu, 0);
 }
 
 fn main() {
