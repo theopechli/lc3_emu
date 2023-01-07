@@ -254,7 +254,7 @@ struct Traps {
     trap_puts: fn(&mut Emulator),
     trap_in: fn(&mut Emulator),
     trap_putsp: fn(&mut Emulator),
-    trap_halt: fn(),
+    trap_halt: fn(&mut Emulator),
 }
 
 impl Traps {
@@ -265,7 +265,7 @@ impl Traps {
             trap_puts,
             trap_in,
             trap_putsp,
-            trap_halt: help,
+            trap_halt,
         }
     }
 
@@ -276,7 +276,7 @@ impl Traps {
             Trap::TrapPuts => (self.trap_puts)(emu),
             Trap::TrapIn => (self.trap_in)(emu),
             Trap::TrapPutsp => (self.trap_putsp)(emu),
-            Trap::TrapHalt => (self.trap_halt)(),
+            Trap::TrapHalt => (self.trap_halt)(emu),
         }
     }
 }
@@ -309,6 +309,7 @@ struct Emulator {
     pub registers: Registers,
     pub opcodes: Opcodes,
     pub traps: Traps,
+    pub running: bool,
 }
 
 impl Emulator {
@@ -318,6 +319,7 @@ impl Emulator {
             registers: Registers::new(),
             opcodes: Opcodes::new(),
             traps: Traps::new(),
+            running: true,
         }
     }
 }
@@ -645,6 +647,11 @@ fn trap_putsp(emu: &mut Emulator) {
     }
 }
 
+fn trap_halt(emu: &mut Emulator) {
+    println!("HALT");
+    emu.running = false;
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -653,9 +660,11 @@ fn main() {
             let binary: PathBuf = PathBuf::from(args[1].parse::<String>().unwrap());
             println!("Emulation target is: '{}'", binary.display());
             {
-                File::open(&binary).unwrap_or_else(|err| {
+                let file = File::open(&binary).unwrap_or_else(|err| {
                     panic!("Could not open file '{}': {}", binary.display(), err)
                 });
+
+                read_image_file(file);
             }
         }
         _ => {
