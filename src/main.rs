@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, env, fs::File, io::BufReader, io::Read, path::PathBuf, str};
+use std::{convert::TryFrom, env, fs::File, io::BufReader, io::Read, io::Write, path::PathBuf};
 
 const PC_START: u16 = 0x3000;
 const MEMORY_MAX: usize = 1 << 16;
@@ -190,7 +190,7 @@ impl Opcodes {
             op_and,
             op_ldr,
             op_str,
-            op_rti: help,
+            op_rti,
             op_not,
             op_ldi,
             op_sti,
@@ -269,7 +269,7 @@ impl Traps {
         }
     }
 
-    fn call(&self, trap: Trap, emu: &mut Emulator, instr: u16) {
+    fn call(&self, trap: Trap, emu: &mut Emulator) {
         match trap {
             Trap::TrapGetc => (self.trap_getc)(emu),
             Trap::TrapOut => (self.trap_out)(emu),
@@ -298,8 +298,7 @@ impl Mmu {
     }
 
     pub fn read(&mut self, address: usize) -> u16 {
-        let value = self.memory[address];
-        value
+        return self.memory[address];
     }
 }
 
@@ -352,9 +351,22 @@ fn be_to_le(buf: &mut Vec<u8>) {
     }
 }
 
-fn read_image_file(file: File) {
+fn vec_u8_to_vec_u16(buf: Vec<u8>) -> Vec<u16> {
+    let mut other: Vec<u16> = vec![0; buf.len() / 2];
+    let mut j = 0;
+
+    for i in (0..buf.len()).step_by(2) {
+        other[j] = ((buf[i + 1] as u16) << 8) | buf[i] as u16;
+        j += 1;
+    }
+
+    other
+}
+
+fn read_image_file(file: File, emu: &mut Emulator) {
     let mut reader = BufReader::new(file);
 
+    // origin seems to be the PC_START
     let mut origin = read_n(reader.by_ref(), 2);
     be_to_le(&mut origin);
 
@@ -363,6 +375,14 @@ fn read_image_file(file: File) {
         (MEMORY_MAX - origin.len()).try_into().unwrap(),
     );
     be_to_le(&mut rest);
+
+    let buf = vec_u8_to_vec_u16(rest);
+    let mut address: usize = PC_START as usize;
+
+    for i in buf.clone() {
+        emu.memory.write(address, i);
+        address += 1;
+    }
 }
 
 fn sign_extend(mut x: u16, bit_count: u8) -> u16 {
@@ -521,6 +541,8 @@ fn op_lea(emu: &mut Emulator, instr: u16) {
     update_flags(emu, dr);
 }
 
+fn op_rti() {}
+
 fn op_not(emu: &mut Emulator, instr: u16) {
     let dr: u16 = (instr >> 9) & 0x7;
     let sr: u16 = (instr >> 6) & 0x7;
@@ -570,7 +592,7 @@ fn op_str(emu: &mut Emulator, instr: u16) {
 fn op_trap(emu: &mut Emulator, instr: u16) {
     let trap = Trap::try_from(instr & 0xFF);
     if let Ok(trap) = trap {
-        emu.traps.clone().call(trap, emu, instr);
+        emu.traps.clone().call(trap, emu);
     }
 }
 
@@ -586,9 +608,8 @@ fn trap_getc(emu: &mut Emulator) {
 }
 
 fn trap_puts(emu: &mut Emulator) {
-    let mut c: u16 = emu
-        .memory
-        .read((emu.registers.get_value(Register::Rr0) as u16).into());
+    let mut i: usize = (emu.registers.get_value(Register::Rr0) as u16).into();
+    let mut c: u16 = emu.memory.read(i);
 
     loop {
         if c == 0 {
@@ -596,8 +617,11 @@ fn trap_puts(emu: &mut Emulator) {
         }
 
         print!("{}", c as u8 as char);
-        c += 1;
+        i += 1;
+        c = emu.memory.read(i);
     }
+
+    std::io::stdout().flush().expect("Failed to flush");
 }
 
 fn trap_out(emu: &mut Emulator) {
@@ -639,7 +663,7 @@ fn trap_putsp(emu: &mut Emulator) {
         c2 = (c >> 8) as u8;
 
         print!("{}", c1 as char);
-        if (c2 != 0) {
+        if c2 != 0 {
             print!("{}", c2 as char);
         }
 
@@ -654,6 +678,7 @@ fn trap_halt(emu: &mut Emulator) {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    let mut emu: Emulator;
 
     match args.len() {
         2 => {
@@ -664,7 +689,9 @@ fn main() {
                     panic!("Could not open file '{}': {}", binary.display(), err)
                 });
 
-                read_image_file(file);
+                emu = Emulator::new();
+
+                read_image_file(file, &mut emu);
             }
         }
         _ => {
@@ -673,39 +700,28 @@ fn main() {
         }
     }
 
-    // TODO load binary
-
-    let mut emu = Emulator::new();
-
     emu.registers.update(
         Register::Rcond,
         ConditionFlag::get_cflag_value(ConditionFlag::FlZro),
     );
-    emu.registers.update(Register::Rr1, 10);
-    emu.registers.update(Register::Rr2, 11);
-
     emu.registers.update(Register::Rpc, PC_START);
 
-    let mut running = true;
     let mut instr: u16;
     let mut op: Result<Opcode, ()>;
 
-    while running {
-        // TODO fetch instruction and match op
-
-        instr = 0b1111011100100100;
+    while emu.running {
+        instr = emu
+            .memory
+            .read(emu.registers.get_value(Register::Rpc) as usize);
+        emu.registers
+            .update(Register::Rpc, emu.registers.get_value(Register::Rpc) + 1);
         op = Opcode::try_from(instr >> 12);
 
-        println!("Instruction {:b}", instr);
-
         if let Ok(op) = op {
-            println!("Opcode {:?}", op);
             emu.opcodes.clone().call(op, &mut emu, instr);
-            running = false;
         } else {
-            eprintln!("Invalid instruction")
+            eprintln!("Invalid instruction");
+            emu.running = false;
         }
-
-        println!("{:?}", emu.registers);
     }
 }
